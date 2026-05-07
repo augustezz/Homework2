@@ -1,0 +1,328 @@
+---
+title: "data qc"
+format: html
+editor: visual
+---
+
+```{r}
+setwd('C:/Users/avgus/Desktop/data_omics/HW2')
+
+library(patchwork)
+library(ggplot2)
+library(DSS)
+library(data.table)
+library(png)
+library(gridExtra)
+library(corrplot)
+library(data.table)
+library(reshape2)
+library(rsvg)
+
+
+```
+
+```{r}
+# Data
+mapping <- data.frame(
+  sample = c("SRR11647648", "SRR11647649", "SRR11647658", "SRR11647659"),
+  mapping_rate = c(83.72, 83.67, 83.04, 83.48),
+  duplication_rate = c(6.7, 13.7, 6.5, 10.2)
+)
+
+sample_colors <- c(
+  "SRR11647648" = "#e89eb8",
+  "SRR11647649" = "#332932",
+  "SRR11647658" = "#bb9999",
+  "SRR11647659" = "#bcbd22"
+)
+
+p1 <- ggplot(mapping, aes(x=sample, y=mapping_rate, fill=sample)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=paste0(round(mapping_rate, 2), "%")), vjust=-0.5, size=4) +
+  scale_fill_manual(values=sample_colors) +
+  ylim(0, 100) +
+  labs(title="Mapping Rate per Sample", x="Sample", y="Mapping Rate (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=45, hjust=1),
+    legend.position = 'none')
+
+
+p2 <- ggplot(mapping, aes(x=sample, y=duplication_rate, fill=sample)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=paste0(round(duplication_rate, 2), "%")), vjust=-0.5, size=4) +
+  scale_fill_manual(values=sample_colors) +
+  ylim(0, 100) +
+  labs(title="Duplication Rate per Sample", x="Sample", y="Duplication Rate (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=45, hjust=1),
+    legend.position = 'none')
+
+p1 + p2
+
+ggsave("mapping_duplication.png", width=14, height=6)
+```
+
+```{r}
+library(grid)
+setwd('C:/Users/avgus/Desktop/data_omics/HW2/mbias_20chr')
+library(rsvg); library(png); library(grid); library(gridExtra)
+
+setwd('C:/Users/avgus/Desktop/data_omics/HW2/mbias_20chr')
+
+files <- list.files(pattern="\\.svg$", full.names=TRUE)
+for(f in files){ rsvg::rsvg_png(f, file=gsub(".svg", ".png", f)) }
+
+# Load in order: OT and OB per sample
+imgs <- lapply(c(
+  "./SRR11647648_mbias_20chr_OT.png", "./SRR11647648_mbias_20chr_OB.png",
+  "./SRR11647649_mbias_20chr_OT.png", "./SRR11647649_mbias_20chr_OB.png",
+  "./SRR11647658_mbias_20chr_OT.png", "./SRR11647658_mbias_20chr_OB.png",
+  "./SRR11647659_mbias_20chr_OT.png", "./SRR11647659_mbias_20chr_OB.png"
+), readPNG)
+
+png("combined_mbias_v1.png", width=2400, height=3200)
+grid.arrange(grobs=lapply(imgs, rasterGrob), ncol=2,
+  top="M-bias plots (OT=left, OB=right)")
+dev.off()
+
+grobs_labeled <- lapply(seq_along(imgs), function(i){
+  sample_names <- rep(c("SRR11647648","SRR11647649","SRR11647658","SRR11647659"), each=2)
+  strand_names <- rep(c("OT","OB"), 4)
+  arrangeGrob(rasterGrob(imgs[[i]]), 
+              top=paste(sample_names[i], strand_names[i]))
+})
+
+png("combined_mbias_v2.png", width=2400, height=3200)
+grid.arrange(grobs=grobs_labeled, ncol=2)
+dev.off()
+```
+
+
+
+methylation based
+
+```{r}
+# ============================================================
+# WGBS Analysis - Data QC and Statistical Analysis
+# ============================================================
+
+library(data.table)
+library(ggplot2)
+library(corrplot)
+library(dplyr)
+
+setwd('C:/Users/avgus/Desktop/data_omics/HW2/methylation_chr20')
+
+sample_colors <- c(
+  "SRR11647648" = "#e89eb8",
+  "SRR11647649" = "#332932",
+  "SRR11647658" = "#bb9999",
+  "SRR11647659" = "#bcbd22"
+)
+
+# ============================================================
+# 1. LOAD DATA
+# ============================================================
+read_bedgraph <- function(file){
+  df <- fread(file, skip=1, col.names=c("chr", "start", "end", "methylation", "M", "U"))
+  df$coverage <- df$M + df$U
+  return(df)
+}
+
+s1 <- read_bedgraph("SRR11647648_methylation_CpG.bedGraph")
+s2 <- read_bedgraph("SRR11647649_methylation_CpG.bedGraph")
+s3 <- read_bedgraph("SRR11647658_methylation_CpG.bedGraph")
+s4 <- read_bedgraph("SRR11647659_methylation_CpG.bedGraph")
+
+# ============================================================
+# 2. COVERAGE QC
+# ============================================================
+
+# Total reads and covered CpGs
+cat("Total reads per sample:\n")
+cat("SRR11647648:", sum(s1$coverage), "\n")
+cat("SRR11647649:", sum(s2$coverage), "\n")
+cat("SRR11647658:", sum(s3$coverage), "\n")
+cat("SRR11647659:", sum(s4$coverage), "\n")
+
+cat("\nCovered CpGs per sample:\n")
+cat("SRR11647648:", nrow(s1), "\n")
+cat("SRR11647649:", nrow(s2), "\n")
+cat("SRR11647658:", nrow(s3), "\n")
+cat("SRR11647659:", nrow(s4), "\n")
+
+# Coverage summary table
+coverage_summary <- data.frame(
+  sample = c("SRR11647648", "SRR11647649", "SRR11647658", "SRR11647659"),
+  total_reads = c(sum(s1$coverage), sum(s2$coverage), sum(s3$coverage), sum(s4$coverage)),
+  covered_CpGs = c(nrow(s1), nrow(s2), nrow(s3), nrow(s4))
+)
+print(coverage_summary)
+
+# Coverage distribution plot
+s1$sample <- "SRR11647648"; s2$sample <- "SRR11647649"
+s3$sample <- "SRR11647658"; s4$sample <- "SRR11647659"
+all_samples <- rbind(s1, s2, s3, s4)
+
+ggplot(all_samples, aes(x=coverage, fill=sample)) +
+  geom_histogram(binwidth=1, position="identity", alpha=0.6) +
+  scale_fill_manual(values=sample_colors) +
+  xlim(0, 50) +
+  labs(title="Coverage Distribution per CpG",
+       x="Coverage (reads per CpG)", y="Number of CpGs") +
+  theme_minimal() +
+  facet_wrap(~sample, ncol=2)
+ggsave("coverage_distribution.png", width=12, height=8)
+
+# ============================================================
+# 3. PEARSON CORRELATION
+# ============================================================
+merged <- Reduce(function(x,y) merge(x, y, by=c("chr","start","end")),
+                 list(s1[,c("chr","start","end","methylation")],
+                      s2[,c("chr","start","end","methylation")],
+                      s3[,c("chr","start","end","methylation")],
+                      s4[,c("chr","start","end","methylation")]))
+colnames(merged) <- c("chr","start","end","SRR11647648","SRR11647649","SRR11647658","SRR11647659")
+
+cor_matrix <- cor(merged[,4:7], method="pearson")
+
+png("correlation_plot.png", width=800, height=800)
+corrplot(cor_matrix, method="color", type="upper",
+         addCoef.col="black", tl.col="black",
+         col=colorRampPalette(c("#e89eb8","white","#332932"))(200),
+         title="Pearson Correlation of Methylation Levels")
+dev.off()
+
+# ============================================================
+# 4. PCA
+# ============================================================
+meth_matrix <- t(merged[,4:7])
+meth_matrix <- meth_matrix[, apply(meth_matrix, 2, var) > 0]
+pca <- prcomp(meth_matrix, scale=TRUE)
+
+pca_df <- data.frame(
+  PC1 = pca$x[,1],
+  PC2 = pca$x[,2],
+  sample = rownames(pca$x),
+  condition = c("normal", "normal", "tumor", "tumor")
+)
+
+var_explained <- round(summary(pca)$importance[2,] * 100, 1)
+
+ggplot(pca_df, aes(x=PC1, y=PC2, color=condition, label=sample)) +
+  geom_point(size=5) +
+  geom_text(vjust=-1, size=3) +
+  scale_color_manual(values=c("normal"="#e89eb8", "tumor"="#332932")) +
+  labs(title="PCA of Methylation Levels",
+       x=paste0("PC1 (", var_explained[1], "%)"),
+       y=paste0("PC2 (", var_explained[2], "%)")) +
+  theme_minimal()
+ggsave("pca_plot.png", width=8, height=6)
+
+```
+```{r}
+# ============================================================
+# 5. PCA WITH DIFFERENT COVERAGE FILTERS
+# ============================================================
+
+# Merge coverage from all samples
+cov <- Reduce(function(x,y) merge(x, y, by=c("chr","start","end")),
+              list(s1[,c("chr","start","end","coverage")],
+                   s2[,c("chr","start","end","coverage")],
+                   s3[,c("chr","start","end","coverage")],
+                   s4[,c("chr","start","end","coverage")]))
+colnames(cov) <- c("chr","start","end","cov1","cov2","cov3","cov4")
+
+run_pca <- function(min_coverage) {
+  keep <- cov$cov1 >= min_coverage &
+          cov$cov2 >= min_coverage &
+          cov$cov3 >= min_coverage &
+          cov$cov4 >= min_coverage
+  
+  merged_filtered <- merged[keep,]
+  
+  meth_matrix <- t(merged_filtered[,4:7])
+  meth_matrix <- meth_matrix[, apply(meth_matrix, 2, var) > 0]
+  pca <- prcomp(meth_matrix, scale=TRUE)
+  
+  pca_df <- data.frame(
+    PC1 = pca$x[,1],
+    PC2 = pca$x[,2],
+    sample = rownames(pca$x),
+    condition = c("normal", "normal", "tumor", "tumor"),
+    filter = paste0(">=", min_coverage, "x\n(", nrow(merged_filtered), " CpGs)")
+  )
+  return(pca_df)
+}
+
+# Run for each filter
+all_pca <- rbind(
+  run_pca(5),
+  run_pca(15),
+  run_pca(20)
+)
+
+# Plot
+ggplot(all_pca, aes(x=PC1, y=PC2, color=condition, label=sample)) +
+  geom_point(size=5) +
+  geom_text(vjust=-1, size=3) +
+  scale_color_manual(values=c("normal"="#e89eb8", "tumor"="#332932")) +
+  facet_wrap(~filter, ncol=3) +
+  labs(title="PCA with Different Coverage Filters") +
+  theme_minimal()
+
+ggsave("pca_filtered.png", width=16, height=5)
+```
+
+
+
+```{r}
+ggplot(all_samples, aes(x=coverage, color=sample)) +
+  geom_density(bw=1.1, linewidth = 1.1) +
+  geom_vline(xintercept=5, color="red", linetype="dashed") +
+  scale_color_manual(values=sample_colors) +
+  xlim(0, 100) +
+  labs(title="Coverage Distribution - All Samples",
+       x="Coverage Depth", y="Density") +
+  theme_minimal()
+
+  ggsave("coverage_density.png", width=10, height=6)
+```
+
+```{r}
+# Coverage distribution per sample - faceted histogram
+ggplot(all_samples, aes(x=coverage, fill = sample)) +
+  geom_histogram(binwidth=1) +
+  geom_vline(xintercept=5, color="red", linetype="dashed") +
+  scale_fill_manual(values=sample_colors) +
+  xlim(0, 100) +
+  labs(title="Coverage Distribution per Sample",
+       x="Coverage Depth", y="Number of CpGs") +
+  theme_minimal() +
+  facet_wrap(~sample, ncol=2)
+
+ggsave("coverage_distribution_faceted.png", width=12, height=8)
+```
+
+```{r}
+# Mean coverage per sample
+mean_cov <- data.frame(
+  sample = c("SRR11647648", "SRR11647649", "SRR11647658", "SRR11647659"),
+  condition = c("normal", "normal", "tumor", "tumor"),
+  mean_coverage = c(mean(s1$coverage), mean(s2$coverage), 
+                    mean(s3$coverage), mean(s4$coverage))
+)
+
+ggplot(mean_cov, aes(x=sample, y=mean_coverage, fill=sample)) +
+  geom_bar(stat="identity") +
+  geom_hline(yintercept=mean(mean_cov$mean_coverage), 
+             color="red", linetype="dashed") +
+  scale_fill_manual(values=sample_colors) +
+  labs(title="Mean Coverage per Sample",
+       x="Sample", y="Mean Coverage (reads)") +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+ggsave("mean_coverage.png", width=8, height=6)
+```
+
