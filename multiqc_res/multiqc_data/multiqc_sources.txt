@@ -1,0 +1,9 @@
+Module	Section	Sample Name	Source
+FastQC	all_sections	SRR11647648_1	/home/genetics/homework2/fastqc_res/SRR11647648_1_fastqc.zip
+FastQC	all_sections	SRR11647648_2	/home/genetics/homework2/fastqc_res/SRR11647648_2_fastqc.zip
+FastQC	all_sections	SRR11647649_1	/home/genetics/homework2/fastqc_res/SRR11647649_1_fastqc.zip
+FastQC	all_sections	SRR11647649_2	/home/genetics/homework2/fastqc_res/SRR11647649_2_fastqc.zip
+FastQC	all_sections	SRR11647658_1	/home/genetics/homework2/fastqc_res/SRR11647658_1_fastqc.zip
+FastQC	all_sections	SRR11647658_2	/home/genetics/homework2/fastqc_res/SRR11647658_2_fastqc.zip
+FastQC	all_sections	SRR11647659_1	/home/genetics/homework2/fastqc_res/SRR11647659_1_fastqc.zip
+FastQC	all_sections	SRR11647659_2	/home/genetics/homework2/fastqc_res/SRR11647659_2_fastqc.zip
